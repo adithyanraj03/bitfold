@@ -99,6 +99,7 @@ pub fn length_code(len: u32) -> (u32, u32) {
         lo
     };
     let extra = len - LEN_BASE[i];
+    debug_assert!(extra < 1 << LEN_EXTRA[i], "extra {extra} does not fit code {i}");
     (i as u32, extra)
 }
 
@@ -106,9 +107,10 @@ pub fn length_code(len: u32) -> (u32, u32) {
 #[must_use]
 pub fn distance_code(dist: u32) -> (u32, u32) {
     debug_assert!((1..=32768).contains(&dist));
-    // Largest i with DIST_BASE[i] <= dist.
+    // Largest i with DIST_BASE[i] <= dist. Code 29 (base 24577, 13 extra
+    // bits) covers 24577..32768; every extra value fits its field.
     let mut lo = 0usize;
-    let mut hi = DIST_BASE.len();
+    let mut hi = 29usize;
     while lo < hi {
         let mid = (lo + hi + 1) / 2;
         if DIST_BASE[mid] <= dist {
@@ -118,5 +120,6 @@ pub fn distance_code(dist: u32) -> (u32, u32) {
         }
     }
     let extra = dist - DIST_BASE[lo];
+    debug_assert!(extra < 1 << DIST_EXTRA[lo], "extra {extra} does not fit code {lo}");
     (lo as u32, extra)
 }
