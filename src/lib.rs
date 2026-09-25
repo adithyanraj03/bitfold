@@ -4,6 +4,7 @@
 pub mod bits;
 pub mod corpus;
 pub mod crypto;
+pub mod huff;
 
 /// Crate version (pinned).
 pub const VERSION: &str = "1.0.0";
