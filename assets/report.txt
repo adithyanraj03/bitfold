@@ -1,0 +1,59 @@
+========================================================================
+BITFOLD VERIFICATION REPORT
+RFC 1951 DEFLATE + CRC-32/Adler-32 — from scratch, std-only, verified
+========================================================================
+version       : bitfold 1.0.0
+
+corpus (public-domain, embedded at compile time):
+  rfc1951        36944 bytes    92 distinct symbols
+  rfc8439        88847 bytes    97 distinct symbols
+  b0000796      148898 bytes    12 distinct symbols
+  total         274689 bytes
+
+round trips (encode -> decode, byte-identical):
+  raw DEFLATE corpus :    274689 B in ->    94150 B out  byte-exact
+  zlib container     :    274689 B in ->    94156 B out  byte-exact  (78 9c + Adler-32)
+  fox message (2250) :      2250 B in ->       70 B out  byte-exact
+  container hashes   : crc32 = 24944d93  adler32 = 0eda5e34
+
+KAT battery (deterministic known-answer checks):
+  rfc1951      12 checks,   12 pass
+  bits          4 checks,    4 pass
+  blocks        5 checks,    5 pass
+  hash        162 checks,  162 pass
+  xval          4 checks,    4 pass
+  total       188 checks,  188 pass  ALL PASS
+
+entropy ledger (u128 fixed-point, 2^40 scale):
+  rfc1951    H =  4.33486 bits/byte  ratio bound  1.8455  top: 0x20 x11662
+  rfc8439    H =  4.72736 bits/byte  ratio bound  1.6923  top: 0x20 x24651
+  b0000796   H =  3.50329 bits/byte  ratio bound  2.2836  top: 0x0a x20004
+  total      H =  4.53187 bits/byte  ratio bound  1.7653
+
+encoder profile (full corpus, one pass):
+  blocks         : 5 total (0 stored, 0 fixed, 5 dynamic)
+  phrases        : 23227 literals, 41141 matches (251462 bytes copied)
+  deflate bits   : 753194 logical bits (94150 bytes on the wire)
+  achieved ratio : 0.3428 (94156 B / 274689 B)
+  entropy fold   : 491662 bits BELOW the memoryless bound
+                   (1.7899 bits/byte under H = 4.53187) — the LZ77 stage
+                   captured the sequential redundancy that per-byte
+                   entropy cannot see; beating that bound is the win.
+  efficiency     : 165.28% of the memoryless bound (>100% = below it)
+  lz77           : window 32768, min match 3, max match 258,
+                   chain limit 128, hash table 2^16 (chained hash)
+
+cross-verification (CPython zlib, pinned at development time):
+  xval-our-dynamic-fox  PASS  70 bytes dynamic (pinned, CPython-verified)
+  xval-cpython-fixed-fox-1  PASS  zlib(level 1, fixed) 77 bytes -> 2250 bytes
+  xval-cpython-fixed-fox-6  PASS  zlib(level 6, fixed) 72 bytes -> 2250 bytes
+  xval-cpython-fixed-data  PASS  zlib(level 1) 309 bytes -> 3000 bytes incompressible
+  encoder direction: our dynamic stream decodes byte-identical in
+  zlib.decompress; decoder direction: zlib's fixed-block streams
+  decode byte-identical here. The hexes are pinned in the KAT battery.
+
+artifacts (sha256 of the shipped renders):
+  anim.svg         7637 B  90f1e26b8953f5ff2476050afaa6c8c76c98b28e99f5e366503ab28458b7c3b2
+  frames.svg       7585 B  57e44289a85d7fbcbc3f5f0c62eb8858588e1a13fb880be587bf498af27c9abe
+  (this report's and the dossier's own hashes are pinned by
+   `bitfold attest` — see attestation.txt.)

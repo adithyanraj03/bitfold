@@ -1,0 +1,23 @@
+========================================================================
+BITFOLD DETERMINISM ATTESTATION
+dual in-process render, SHA-256 comparison, fixed project date
+========================================================================
+version       : bitfold 1.0.0
+attested date : 2026-01-01 (pinned; no wall clock)
+corpus        : 274689 bytes (3 public-domain parts, embedded)
+KAT battery   : 188 checks (13 rfc + 4 bits + 5 blocks + 162 hashes + 4 xval)
+
+render 1 (in-process):
+  report.txt         3119 B  b38bde143d2c5a8bd6ce54b4aaccb850204d9f6311002f8d58b9296d459b1043
+  dossier.pdf        6548 B  e5d9030f1d27c2c21737e9f69eaf1d9c774e76e60363f477d8bc4be2819434f0
+
+render 2 (in-process):
+  report.txt         3119 B  b38bde143d2c5a8bd6ce54b4aaccb850204d9f6311002f8d58b9296d459b1043
+  dossier.pdf        6548 B  e5d9030f1d27c2c21737e9f69eaf1d9c774e76e60363f477d8bc4be2819434f0
+
+verdict       : BYTE-IDENTICAL — both renders reproduce the same digests.
+A cross-process re-run of `bitfold attest` must reproduce these
+four digests exactly; any difference breaks the determinism brand.
+
+(c) 2026 Adithya N Raj — bitfold, RFC 1951 from scratch, std-only.
+========================================================================
