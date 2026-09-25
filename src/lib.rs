@@ -12,6 +12,7 @@
 //! emits.
 
 pub mod adler;
+pub mod attest;
 pub mod battery;
 pub mod bits;
 pub mod corpus;
@@ -27,6 +28,7 @@ pub mod kats;
 /// extraction and CPython verification provenance).
 pub mod kat_data;
 pub mod lzw77;
+pub mod pdf;
 pub mod svg;
 
 /// Crate version (pinned; also printed by `bitfold version`).
