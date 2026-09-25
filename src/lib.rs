@@ -7,6 +7,7 @@ pub mod corpus;
 pub mod crc32;
 pub mod crypto;
 pub mod deflate;
+pub mod entropy;
 pub mod huff;
 pub mod inflate;
 pub mod kats;
