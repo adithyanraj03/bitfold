@@ -11,6 +11,7 @@ pub mod huff;
 /// zlib_hash_tests.h` by `tools/gen_kat_data.py` (see that file for the
 /// extraction and CPython verification provenance).
 pub mod kat_data;
+pub mod lzw77;
 
 /// Crate version (pinned).
 pub const VERSION: &str = "1.0.0";
