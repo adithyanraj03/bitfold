@@ -1,4 +1,4 @@
-//! Canonical Huffman coding (RFC 1951 §3.2.2, §3.2.5, §3.2.6).
+//! Canonical Huffman coding (RFC 1951 §3.2.2, §3.2.5, §3.2.6, §3.2.7).
 //!
 //! * `canonical_codes` implements the RFC's bl_count / next_code /
 //!   assign algorithm verbatim.
@@ -6,6 +6,8 @@
 //!   running the same algorithm on the RFC's fixed length sequences.
 //! * The length codes 257..285 and distance codes 0..29 with their extra
 //!   bits (§3.2.5) are the two lookup tables.
+//! * `encode_code_lengths` / `decode_code_lengths` implement the 19-symbol
+//!   code-length alphabet with the 16/17/18 repeat runs (§3.2.7).
 
 /// The 19 code-length symbols in their on-the-wire order (RFC §3.2.7):
 /// 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15.
@@ -122,4 +124,145 @@ pub fn distance_code(dist: u32) -> (u32, u32) {
     let extra = dist - DIST_BASE[lo];
     debug_assert!(extra < 1 << DIST_EXTRA[lo], "extra {extra} does not fit code {lo}");
     (lo as u32, extra)
+}
+
+/// Encode a sequence of code lengths (257..286 lit/length + 1..32
+/// distance, concatenated) into the 19-symbol code-length alphabet,
+/// using the 16/17/18 repeat runs (RFC §3.2.7).
+///
+/// Returns the symbol sequence (values 0..18) and, for each 16/17/18
+/// symbol, the repeat-count bits (2/3/7-bit fields, 0 for others).
+#[must_use]
+pub fn encode_code_lengths(lengths: &[u8]) -> (Vec<u32>, Vec<u32>) {
+    let mut syms: Vec<u32> = Vec::new();
+    let mut reps: Vec<u32> = Vec::new();
+    let mut i = 0usize;
+    let n = lengths.len();
+    while i < n {
+        let l = lengths[i];
+        if l == 0 {
+            // Count the run of zeros.
+            let mut run = 0;
+            while i + run < n && lengths[i + run] == 0 {
+                run += 1;
+            }
+            if run < 3 {
+                for _ in 0..run {
+                    syms.push(0);
+                    reps.push(0);
+                }
+            } else if run <= 10 {
+                syms.push(17);
+                reps.push((run - 3) as u32); // 3 bits
+            } else {
+                // 18 covers 11..138; a longer run needs several.
+                let mut rest = run;
+                while rest >= 3 {
+                    let take = if rest >= 11 {
+                        (rest.min(138)) as u32
+                    } else {
+                        0
+                    };
+                    if take >= 11 {
+                        syms.push(18);
+                        reps.push(take - 11); // 7 bits
+                        rest -= take as usize;
+                    } else if rest >= 3 && rest <= 10 {
+                        syms.push(17);
+                        reps.push((rest - 3) as u32);
+                        rest = 0;
+                    } else {
+                        break;
+                    }
+                }
+                if rest > 0 && rest < 3 {
+                    for _ in 0..rest {
+                        syms.push(0);
+                        reps.push(0);
+                    }
+                }
+            }
+            i += run;
+        } else {
+            // Literal length symbol.
+            syms.push(l as u32);
+            reps.push(0);
+            i += 1;
+            // Try to extend a run of the same length with 16.
+            if l <= 15 {
+                let mut run = 0;
+                while i + run < n && lengths[i + run] == l {
+                    run += 1;
+                }
+                if run >= 4 {
+                    // `run` is counted after the first literal was already
+                    // emitted, so it is the number of *remaining* copies.
+                    let mut rest = run;
+                    while rest >= 3 {
+                        let take = rest.min(6);
+                        syms.push(16);
+                        reps.push((take - 3) as u32); // 2 bits
+                        rest -= take;
+                    }
+                    if rest > 0 {
+                        for _ in 0..rest {
+                            syms.push(l as u32);
+                            reps.push(0);
+                        }
+                    }
+                    i += run;
+                }
+            }
+        }
+    }
+    (syms, reps)
+}
+
+/// Decode the code-length sequence from the 19-symbol alphabet.
+///
+/// `read_sym` must return the next symbol (0..18); `read_bits` the next
+/// `n` bits LSB-first. Returns the reconstructed length sequence
+/// (`expected` long); errors on overrun or a 16-run at sequence start.
+pub fn decode_code_lengths(
+    mut read_sym: impl FnMut() -> Result<u32, crate::bits::BitError>,
+    mut read_bits: impl FnMut(u32) -> Result<u64, crate::bits::BitError>,
+    expected: usize,
+) -> Result<Vec<u8>, crate::bits::BitError> {
+    let mut out: Vec<u8> = Vec::with_capacity(expected);
+    while out.len() < expected {
+        let s = read_sym()? as usize;
+        match s {
+            0..=15 => out.push(s as u8),
+            16 => {
+                if out.is_empty() {
+                    return Err(crate::bits::BitError::Exhausted);
+                }
+                let prev = *out.last().unwrap();
+                let rep = read_bits(2)? as usize + 3; // 3..6
+                for _ in 0..rep {
+                    if out.len() < expected {
+                        out.push(prev);
+                    }
+                }
+            }
+            17 => {
+                let rep = read_bits(3)? as usize + 3; // 3..10
+                for _ in 0..rep {
+                    if out.len() < expected {
+                        out.push(0);
+                    }
+                }
+            }
+            18 => {
+                let rep = read_bits(7)? as usize + 11; // 11..138
+                for _ in 0..rep {
+                    if out.len() < expected {
+                        out.push(0);
+                    }
+                }
+            }
+            _ => return Err(crate::bits::BitError::Exhausted),
+        }
+    }
+    Ok(out)
 }
