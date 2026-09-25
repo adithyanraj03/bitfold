@@ -1,0 +1,17 @@
+[package]
+name = "bitfold"
+version = "1.0.0"
+edition = "2021"
+description = "RFC 1951 DEFLATE (LZ77 + canonical Huffman) and the zlib hashes, verified from scratch in std-only Rust"
+license = "MIT"
+
+[lib]
+name = "bitfold"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bitfold"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
