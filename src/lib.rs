@@ -4,6 +4,7 @@
 pub mod adler;
 pub mod bits;
 pub mod corpus;
+pub mod crc32;
 pub mod crypto;
 pub mod huff;
 
