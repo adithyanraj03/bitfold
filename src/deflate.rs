@@ -351,10 +351,12 @@ fn write_fixed(w: &mut BitWriter, syms: &[Sym], bfinal: u64) {
                 let (lc, extra_l) = length_code(*len);
                 let (dc, extra_d) = distance_code(*dist);
                 w.push_huff(lit_codes[257 + lc as usize], fixed_lit_len(lc));
-                // Extra bits per the §3.2.5 prose: MSB-first.
-                w.push_huff(extra_l, LEN_EXTRA[lc as usize]);
+                // Extra bits are fixed-width integers: LSB-first on the wire
+                // (§3.1.1; zlib's and puff.c's `hold & mask` read), despite
+                // the §3.2.5 prose. Only Huffman codes are MSB-first.
+                w.push_lsb(extra_l as u64, LEN_EXTRA[lc as usize] as u32);
                 w.push_huff(dist_codes[dc as usize], 5);
-                w.push_huff(extra_d, DIST_EXTRA[dc as usize]);
+                w.push_lsb(extra_d as u64, DIST_EXTRA[dc as usize] as u32);
             }
         }
     }
@@ -398,10 +400,12 @@ fn write_dynamic(w: &mut BitWriter, plan: &DynPlan, syms: &[Sym], bfinal: u64) {
                     lit_codes[257 + lc as usize],
                     plan.lit_len[257 + lc as usize] as u32,
                 );
-                // Extra bits per the §3.2.5 prose: MSB-first.
-                w.push_huff(extra_l, LEN_EXTRA[lc as usize]);
+                // Extra bits are fixed-width integers: LSB-first on the wire
+                // (§3.1.1; zlib's and puff.c's `hold & mask` read), despite
+                // the §3.2.5 prose. Only Huffman codes are MSB-first.
+                w.push_lsb(extra_l as u64, LEN_EXTRA[lc as usize] as u32);
                 w.push_huff(dist_codes[dc as usize], plan.dist_len[dc as usize] as u32);
-                w.push_huff(extra_d, DIST_EXTRA[dc as usize]);
+                w.push_lsb(extra_d as u64, DIST_EXTRA[dc as usize] as u32);
             }
         }
     }

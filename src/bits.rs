@@ -7,6 +7,13 @@
 //! * Huffman codes are packed starting with the **most-significant bit**
 //!   of the code (the first code bit lands in the lowest unused bit
 //!   position of the stream).
+//!
+//! Note on §3.2.5 extra bits (length/distance extras): despite the RFC
+//! prose ("stored with the most-significant bit first"), every reference
+//! implementation — zlib's `hold & mask` read and puff.c's `bits()` —
+//! transmits them LSB-first, as ordinary fixed-width integers. The
+//! encoder/decoder here follow the reference behavior: `push_lsb` /
+//! `next_lsb`.
 
 /// An error raised when the bit stream runs out of bits or is malformed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -115,6 +115,8 @@ fn run_dynamic_block(
                     return Err(InflateError::BadFormat);
                 }
                 let prev = *lens.last().unwrap();
+                // Repeat counts are fixed-width elements: LSB-first
+                // (§3.1.1), unlike the §3.2.5 extra bits.
                 let rep = r
                     .next_lsb(2)
                     .map_err(|_| InflateError::Truncated)?
@@ -183,18 +185,20 @@ fn run_symbol_loop(
             if lc > 28 {
                 return Err(InflateError::BadFormat);
             }
-            // Extra bits per the §3.2.5 prose: MSB-first.
+            // Extra bits are fixed-width integers: LSB-first on the wire
+            // (§3.1.1; zlib's and puff.c's `hold & mask` read), despite the
+            // §3.2.5 prose. Only Huffman codes are MSB-first.
             let extra = r
-                .next_huff(crate::huff::LEN_EXTRA[lc as usize])
-                .map_err(|_| InflateError::Truncated)?;
+                .next_lsb(crate::huff::LEN_EXTRA[lc as usize])
+                .map_err(|_| InflateError::Truncated)? as u32;
             let len = LEN_BASE[lc as usize] + extra;
             let dsym = decode_symbol(r, dist_table)? as u32;
             if dsym > 29 {
                 return Err(InflateError::BadFormat);
             }
             let dextra = r
-                .next_huff(crate::huff::DIST_EXTRA[dsym as usize])
-                .map_err(|_| InflateError::Truncated)?;
+                .next_lsb(crate::huff::DIST_EXTRA[dsym as usize])
+                .map_err(|_| InflateError::Truncated)? as u32;
             let dist = (DIST_BASE[dsym as usize] + dextra) as usize;
             if dist == 0 || dist > out.len() {
                 return Err(InflateError::BadFormat);
