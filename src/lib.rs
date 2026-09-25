@@ -9,6 +9,7 @@ pub mod crypto;
 pub mod deflate;
 pub mod huff;
 pub mod inflate;
+pub mod kats;
 /// Embedded KAT data, auto-generated from `Deleted_files/refs/
 /// zlib_hash_tests.h` by `tools/gen_kat_data.py` (see that file for the
 /// extraction and CPython verification provenance).
