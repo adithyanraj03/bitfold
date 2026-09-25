@@ -26,6 +26,10 @@ pub struct BitWriter {
     acc: u64,
     nbits: usize,
     out: Vec<u8>,
+    /// Total *logical* bits written (elements only; final byte padding is
+    /// not counted here — use `finish().len() * 8` for the physical
+    /// stream size).
+    logical_bits: usize,
 }
 
 impl BitWriter {
@@ -43,6 +47,7 @@ impl BitWriter {
         let mask = if nbits == 64 { u64::MAX } else { (1u64 << nbits) - 1 };
         self.acc |= (value & mask) << self.nbits;
         self.nbits += nbits as usize;
+        self.logical_bits += nbits as usize;
     }
 
     /// Push a Huffman `code` of `nbits` bits, MSB of the code first
@@ -57,6 +62,16 @@ impl BitWriter {
             self.acc |= (bit as u64) << self.nbits;
             self.nbits += 1;
         }
+        self.logical_bits += nbits as usize;
+    }
+
+    /// Discard the remaining bits of the current partially filled byte
+    /// (the next element starts on a byte boundary).
+    pub fn align_to_byte(&mut self) {
+        if self.nbits % 8 != 0 {
+            self.nbits += 8 - (self.nbits % 8);
+            self.flush_full_bytes();
+        }
     }
 
     fn flush_full_bytes(&mut self) {
@@ -65,6 +80,11 @@ impl BitWriter {
             self.acc >>= 8;
             self.nbits -= 8;
         }
+    }
+
+    /// Total logical bits written so far (padding not included).
+    pub fn logical_bits(&self) -> usize {
+        self.logical_bits
     }
 
     /// Bytes already flushed (the partial tail byte is not included).
@@ -88,7 +108,7 @@ pub struct BitReader<'a> {
     data: &'a [u8],
     byte: usize,
     bit: u32,
-    /// Total bits consumed (padding included).
+    /// Total bits consumed (including any padding from `align_to_byte`).
     bits_read: usize,
 }
 
@@ -150,6 +170,30 @@ impl<'a> BitReader<'a> {
     /// Total bits consumed so far (padding included).
     pub fn bits_read(&self) -> usize {
         self.bits_read
+    }
+
+    /// Number of whole bytes fully consumed (valid right after
+    /// `align_to_byte`).
+    pub fn byte_offset(&self) -> usize {
+        self.byte
+    }
+
+    /// Total bytes available.
+    pub fn data_len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// The unconsumed bytes starting at the current byte boundary
+    /// (meaningful when `bit == 0`).
+    pub fn window(&self) -> &[u8] {
+        &self.data[self.byte..]
+    }
+
+    /// Advance `n` whole bytes (the reader must be on a byte boundary).
+    pub fn skip_bytes(&mut self, n: usize) {
+        debug_assert_eq!(self.bit, 0);
+        self.byte += n;
+        self.bits_read += n * 8;
     }
 
     /// True once the reader has passed the last byte.
