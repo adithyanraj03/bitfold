@@ -2,8 +2,11 @@
 //!
 //! * Data elements are packed into bytes in order of **increasing bit
 //!   number** within the byte — starting with the least-significant bit.
-//! * Fixed-width elements are packed starting with the **least-significant
-//!   bit** of the element.
+//! * Data elements other than Huffman codes are packed starting with the
+//!   **least-significant bit** of the element.
+//! * Huffman codes are packed starting with the **most-significant bit**
+//!   of the code (the first code bit lands in the lowest unused bit
+//!   position of the stream).
 
 /// An error raised when the bit stream runs out of bits or is malformed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,6 +16,11 @@ pub enum BitError {
 }
 
 /// Writes bits into a growing byte vector, LSB-first within each byte.
+///
+/// `push_lsb` is for fixed-width elements (block headers, LEN/NLEN, extra
+/// bits, repeat counts): the element's LSB goes into the lowest unused
+/// stream position. `push_huff` is for Huffman codes: the code's MSB (its
+/// first bit) goes into the lowest unused position.
 #[derive(Debug, Default, Clone)]
 pub struct BitWriter {
     acc: u64,
@@ -35,6 +43,20 @@ impl BitWriter {
         let mask = if nbits == 64 { u64::MAX } else { (1u64 << nbits) - 1 };
         self.acc |= (value & mask) << self.nbits;
         self.nbits += nbits as usize;
+    }
+
+    /// Push a Huffman `code` of `nbits` bits, MSB of the code first
+    /// (the first code bit takes the lowest unused stream position).
+    pub fn push_huff(&mut self, code: u32, nbits: u32) {
+        debug_assert!(nbits <= 32);
+        if self.nbits + nbits as usize > 56 {
+            self.flush_full_bytes();
+        }
+        for k in 0..nbits {
+            let bit = (code >> (nbits - 1 - k)) & 1;
+            self.acc |= (bit as u64) << self.nbits;
+            self.nbits += 1;
+        }
     }
 
     fn flush_full_bytes(&mut self) {
@@ -102,6 +124,16 @@ impl<'a> BitReader<'a> {
         let mut v = 0u64;
         for k in 0..nbits {
             v |= self.read_bit()? << k;
+        }
+        Ok(v)
+    }
+
+    /// Read a `nbits`-bit Huffman code: the first bit read is the code's
+    /// most-significant bit.
+    pub fn next_huff(&mut self, nbits: u32) -> Result<u32, BitError> {
+        let mut v = 0u32;
+        for _ in 0..nbits {
+            v = (v << 1) | (self.read_bit()? as u32);
         }
         Ok(v)
     }
