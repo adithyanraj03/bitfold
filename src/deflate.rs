@@ -1,8 +1,9 @@
-//! The DEFLATE encoder (RFC 1951).
+//! The DEFLATE encoder (RFC 1951) and the zlib container (RFC 1950 §2.2).
 //!
 //! Pipeline: `lzw77` phrases -> 64 KiB input blocks -> per-block choice of
 //! BTYPE 00 (stored) / 01 (fixed) / 10 (dynamic) by measured bit cost ->
-//! LSB-first bit stream.
+//! LSB-first bit stream -> zlib wrapper (`0x78 0x9c`, DEFLATE, big-endian
+//! Adler-32 trailer).
 //!
 //! Huffman lengths are built by the plain two-smallest heap algorithm
 //! (deterministic tie-break: insertion order). If the resulting maximum
@@ -531,4 +532,23 @@ pub fn compress_raw(data: &[u8]) -> (Vec<u8>, CompressStats) {
         stats.blocks.push(info);
     }
     (w.finish(), stats)
+}
+
+/// Compress `data` into the zlib container: `0x78 0x9c` + DEFLATE +
+/// big-endian Adler-32 (RFC 1950 §2.2).
+#[must_use]
+pub fn compress_zlib(data: &[u8]) -> Vec<u8> {
+    let (deflate, _stats) = compress_raw(data);
+    let mut out: Vec<u8> = Vec::with_capacity(deflate.len() + 6);
+    out.push(0x78);
+    out.push(0x9c);
+    out.extend_from_slice(&deflate);
+    out.extend_from_slice(&crate::adler::adler32_fresh(data).to_be_bytes());
+    out
+}
+
+/// The container hashes (CRC-32 + Adler-32) of `data` — pinned in KATs.
+#[must_use]
+pub fn container_hashes(data: &[u8]) -> (u32, u32) {
+    (crate::crc32::crc32_fresh(data), crate::adler::adler32_fresh(data))
 }
