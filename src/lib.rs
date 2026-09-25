@@ -7,6 +7,10 @@ pub mod corpus;
 pub mod crc32;
 pub mod crypto;
 pub mod huff;
+/// Embedded KAT data, auto-generated from `Deleted_files/refs/
+/// zlib_hash_tests.h` by `tools/gen_kat_data.py` (see that file for the
+/// extraction and CPython verification provenance).
+pub mod kat_data;
 
 /// Crate version (pinned).
 pub const VERSION: &str = "1.0.0";
