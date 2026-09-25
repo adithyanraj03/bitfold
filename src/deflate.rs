@@ -13,8 +13,8 @@
 
 use crate::bits::BitWriter;
 use crate::huff::{
-    canonical_codes, CODE_LENGTH_ORDER, DIST_EXTRA, FIXED_DIST_LENGTHS, FIXED_LIT_LENGTHS,
-    LEN_EXTRA, length_code, distance_code, encode_code_lengths,
+    canonical_codes, CodeTable, CODE_LENGTH_ORDER, DIST_EXTRA, FIXED_DIST_LENGTHS,
+    FIXED_LIT_LENGTHS, LEN_EXTRA, length_code, distance_code, encode_code_lengths,
 };
 use crate::lzw77::Phrase;
 
@@ -552,3 +552,15 @@ pub fn compress_zlib(data: &[u8]) -> Vec<u8> {
 pub fn container_hashes(data: &[u8]) -> (u32, u32) {
     (crate::crc32::crc32_fresh(data), crate::adler::adler32_fresh(data))
 }
+
+/// The pre-built fixed-code tables (exposed for KATs and the decoder).
+#[must_use]
+pub fn fixed_lit_table() -> CodeTable {
+    CodeTable::build(&FIXED_LIT_LENGTHS)
+}
+
+#[must_use]
+pub fn fixed_dist_table() -> CodeTable {
+    CodeTable::build(&FIXED_DIST_LENGTHS)
+}
+

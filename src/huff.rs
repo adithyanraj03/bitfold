@@ -126,6 +126,53 @@ pub fn distance_code(dist: u32) -> (u32, u32) {
     (lo as u32, extra)
 }
 
+/// A decoded dynamic code table: code lengths, canonical codes, and a
+/// fast lookup (length, code) -> symbol.
+#[derive(Debug, Clone)]
+pub struct CodeTable {
+    pub lengths: Vec<u8>,
+    pub codes: Vec<u32>,
+    /// `lookup[len][code]` = symbol, or `u16::MAX` if no such code exists.
+    lookup: Vec<Vec<u16>>,
+}
+
+impl CodeTable {
+    /// Build a table from bit lengths (canonical assignment).
+    pub fn build(lengths: &[u8]) -> CodeTable {
+        let codes = canonical_codes(lengths, 15);
+        let max_len = lengths.iter().copied().max().unwrap_or(0) as usize;
+        let mut lookup: Vec<Vec<u16>> = (0..=max_len.max(1))
+            .map(|l| vec![u16::MAX; 1 << l])
+            .collect();
+        for (i, (&l, &c)) in lengths.iter().zip(codes.iter()).enumerate() {
+            if l != 0 {
+                lookup[l as usize][c as usize] = i as u16;
+            }
+        }
+        CodeTable {
+            lengths: lengths.to_vec(),
+            codes,
+            lookup,
+        }
+    }
+
+    /// The maximum code length in the table (0 if all lengths are 0).
+    pub fn max_length(&self) -> u32 {
+        self.lengths.iter().copied().max().unwrap_or(0) as u32
+    }
+
+    /// Decode one symbol given its (length, code) pair.
+    pub fn decode(&self, code: u32, len: u32) -> Option<usize> {
+        if len == 0 || len >= self.lookup.len() as u32 {
+            return None;
+        }
+        match self.lookup[len as usize][code as usize] {
+            u16::MAX => None,
+            s => Some(s as usize),
+        }
+    }
+}
+
 /// Encode a sequence of code lengths (257..286 lit/length + 1..32
 /// distance, concatenated) into the 19-symbol code-length alphabet,
 /// using the 16/17/18 repeat runs (RFC §3.2.7).
