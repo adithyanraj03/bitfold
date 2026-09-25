@@ -1,7 +1,7 @@
 # Bitfold
 
 [![language](https://img.shields.io/badge/language-rust-F7DC6F?logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![deps](https://img.shields.io/badge/deps-zero%20%C2%B7%20std%2Donly-22AC80)](https://doc.rust-lang.org/std/)
+[![deps](https://img.shields.io/badge/deps-zero%20%C2%B7%20std%20only-22AC80)](https://doc.rust-lang.org/std/)
 [![format](https://img.shields.io/badge/format-RFC%201951%20DEFLATE-5B51C7)](https://www.rfc-editor.org/rfc/rfc1951)
 [![rustc](https://img.shields.io/badge/rustc-%E2%89%A5%201.94-gray)](https://www.rust-lang.org/tools/install)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
