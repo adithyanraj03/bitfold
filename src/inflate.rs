@@ -51,9 +51,15 @@ fn decode_symbol(r: &mut BitReader, table: &CodeTable) -> Result<usize, InflateE
 }
 
 /// Decode the 19-symbol code-length table from the 3-bit lengths.
-fn code_length_table(r: &mut BitReader) -> Result<CodeTable, InflateError> {
+/// Only the first `hclen + 4` entries of `CODE_LENGTH_ORDER` are
+/// transmitted (the rest are zero), so `hclen` must be passed in.
+fn code_length_table(r: &mut BitReader, hclen: usize) -> Result<CodeTable, InflateError> {
+    let count = hclen + 4;
+    if count > 19 {
+        return Err(InflateError::BadFormat);
+    }
     let mut len = [0u8; 19];
-    for &sym in CODE_LENGTH_ORDER.iter() {
+    for &sym in CODE_LENGTH_ORDER.iter().take(count) {
         let l = r.next_lsb(3).map_err(|_| InflateError::Truncated)?;
         len[sym as usize] = l as u8;
     }
@@ -88,15 +94,16 @@ fn run_dynamic_block(
 ) -> Result<(), InflateError> {
     let hlit = r.next_lsb(5).map_err(|_| InflateError::Truncated)? as usize;
     let hdist = r.next_lsb(5).map_err(|_| InflateError::Truncated)? as usize;
-    // The HCLEN field is on the wire; all 19 code-length lengths follow.
-    let _hclen = r.next_lsb(4).map_err(|_| InflateError::Truncated)?;
+    let hclen = r.next_lsb(4).map_err(|_| InflateError::Truncated)? as usize;
     let n_lit = hlit + 257;
     let n_dist = hdist + 1;
-    // RFC bounds: HLIT <= 31 (288 lit/len lengths), HDIST <= 29.
-    if n_lit > 288 || n_dist > 30 {
+    let n_clen = hclen + 4;
+    // RFC bounds: HLIT <= 31 (288 lit/len lengths), HDIST <= 30 (31... 30
+    // distance lengths is the RFC max, HDIST <= 29), HCLEN <= 15.
+    if n_lit > 288 || n_dist > 30 || n_clen > 19 {
         return Err(InflateError::BadFormat);
     }
-    let cl_table = code_length_table(r)?;
+    let cl_table = code_length_table(r, hclen)?;
     // Decode the code-length sequence (16/17/18 runs) inline.
     let mut lens: Vec<u8> = Vec::with_capacity(n_lit + n_dist);
     while lens.len() < n_lit + n_dist {

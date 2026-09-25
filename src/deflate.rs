@@ -233,9 +233,11 @@ struct DynPlan {
     code_syms: Vec<u32>,
     code_reps: Vec<u32>,
     cl_len: Vec<u8>,
-    /// How many code-length codes have nonzero length; HCLEN is this
-    /// count minus 4 (RFC §3.2.7).
-    cl_nonzero: usize,
+    /// How many of the 19 code-length codes (from the START of
+    /// `CODE_LENGTH_ORDER`) are transmitted. The RFC counts HCLEN as
+    /// "number of code length codes - 4": a *prefix* of the order, not the
+    /// count of nonzero lengths. Untransmitted codes have length 0.
+    cl_count: usize,
     header_bits: u32,
     sym_bits: u32,
 }
@@ -269,8 +271,16 @@ fn dynamic_plan(syms: &[Sym]) -> Option<DynPlan> {
         cl_freq[s as usize] += 1;
     }
     let cl_len = huffman_lengths(&cl_freq, 7)?;
-    let cl_nonzero = cl_len.iter().filter(|&&l| l != 0).count();
-    let header_bits: u32 = 3 + 5 + 5 + 4 + 3 * 19
+    // HCLEN counts a *prefix* of CODE_LENGTH_ORDER (minimum 4 entries), so
+    // the last transmitted entry must cover the last nonzero CL length.
+    let mut last = 0usize;
+    for (i, &sym_idx) in CODE_LENGTH_ORDER.iter().enumerate() {
+        if cl_len[sym_idx as usize] != 0 {
+            last = i + 1;
+        }
+    }
+    let cl_count = last.max(4);
+    let header_bits: u32 = 3 + 5 + 5 + 4 + 3 * cl_count as u32
         + code_syms
             .iter()
             .map(|&s| {
@@ -303,7 +313,7 @@ fn dynamic_plan(syms: &[Sym]) -> Option<DynPlan> {
         code_syms,
         code_reps,
         cl_len,
-        cl_nonzero,
+        cl_count,
         header_bits,
         sym_bits,
     })
@@ -356,9 +366,9 @@ fn write_dynamic(w: &mut BitWriter, plan: &DynPlan, syms: &[Sym], bfinal: u64) {
     w.push_lsb(0b10, 2);
     w.push_lsb((plan.lit_trim.len() - 257) as u64, 5);
     w.push_lsb((plan.dist_trim.len() - 1) as u64, 5);
-    // HCLEN = number of nonzero code length codes - 4 (RFC §3.2.7).
-    w.push_lsb((plan.cl_nonzero - 4) as u64, 4);
-    for &sym_idx in CODE_LENGTH_ORDER.iter() {
+    // HCLEN = number of code length codes (prefix of CODE_LENGTH_ORDER) - 4.
+    w.push_lsb((plan.cl_count - 4) as u64, 4);
+    for &sym_idx in CODE_LENGTH_ORDER.iter().take(plan.cl_count) {
         w.push_lsb(plan.cl_len[sym_idx as usize] as u64, 3);
     }
     let cl_codes = canonical_codes(&plan.cl_len, 7);
