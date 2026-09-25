@@ -2,6 +2,7 @@
 //! Huffman coding, and the zlib container hashes, in std-only Rust.
 
 pub mod corpus;
+pub mod crypto;
 
 /// Crate version (pinned).
 pub const VERSION: &str = "1.0.0";
